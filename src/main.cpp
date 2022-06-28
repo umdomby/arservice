@@ -12,6 +12,9 @@ const uint16_t websockets_server_port = 81; // Enter server port
 
 using namespace websockets;
 
+unsigned long lastUpdate = millis();
+unsigned long lastUpdate15 = millis();
+
 String output;
 
 #include "ServoEasing.hpp"
@@ -107,17 +110,8 @@ void onEventsCallback(WebsocketsEvent event, String data) {
     }
 }
 
-void setup() {
-    Serial.begin(115200);
-    // Connect to wifi
-    WiFi.begin(ssid, password);
 
-    // Wait some time to connect to wifi
-    for(int i = 0; i < 10 && WiFi.status() != WL_CONNECTED; i++) {
-        Serial.print(".");
-        delay(1000);
-    }
-
+void socketSetup(){
     // run callback when messages are received
     client.onMessage(onMessageCallback);
     
@@ -135,7 +129,20 @@ void setup() {
     client.send(output);
     // Send a ping
     client.ping();
+};
 
+void setup() {
+    Serial.begin(115200);
+    // Connect to wifi
+    WiFi.begin(ssid, password);
+
+    // Wait some time to connect to wifi
+    for(int i = 0; i < 10 && WiFi.status() != WL_CONNECTED; i++) {
+        Serial.print(".");
+        delay(1000);
+    };
+
+    socketSetup();
 
     #if defined(__AVR_ATmega32U4__) || defined(SERIAL_USB) || defined(SERIAL_PORT_USBVIRTUAL)  || defined(ARDUINO_attiny3217)
         delay(4000); // To be able to connect Serial monitor after reset or power up and before first print out. Do not wait for an attached Serial Monitor!
@@ -159,20 +166,50 @@ void setup() {
     message2 = map(message2, 0, 90, 90, 180);
 
 }
-unsigned long lastUpdate = millis();
-void loop() {
+
+void socetConnected(){
+
+    client.connect(websockets_server_host, websockets_server_port, "/");
+    Serial.println("[WSc] SENT: Simple js client message!!");
+    doc2["method"] = "connection";
+    doc2["id"] = "b078167f69934795e54a54dc831acea8|a46d12213abfad52db817c17e1fec1ae";
+    output = doc2.as<String>();
+    client.send(output);
     
+};
+
+void loop(){
+   
     client.poll();
 
-    if (connected == false && lastUpdate + messageInterval < millis()){
-        client.connect(websockets_server_host, websockets_server_port, "/");
-        Serial.println("[WSc] SENT: Simple js client message!!");
-        doc2["method"] = "connection";
-        doc2["id"] = "b078167f69934795e54a54dc831acea8|a46d12213abfad52db817c17e1fec1ae";
-        output = doc2.as<String>();
-        client.send(output);
+    if (WiFi.status() != WL_CONNECTED) {
+        Serial.println("WiFi.reconnect()-----------------------------------");
+        Serial.println("WiFi.reconnect()-----------------------------------");
+        //WiFi.disconnect();
+        //WiFi.reconnect();
+        ESP.restart();
+        socketSetup();
+        socetConnected();
+        // ESP.reset(); 
+        // WiFi.disconnect();
+        // WiFi.reconnect();
+    };
+
+    if (lastUpdate + messageInterval < millis()){
+        if (connected == false){
+            Serial.printf(", WS_CONNECTED_connected_false =================================== %s\n", String(connected));
+            socetConnected();
+        };
         lastUpdate = millis();
-    }
+    };
+
+    if (lastUpdate15 + 15000 < millis()){
+        Serial.printf("millis() = %s", String(millis()));
+        Serial.printf(", WiFi.status() = %s", String(WiFi.status()));
+        Serial.printf(", WL_CONNECTED = %s", String(WL_CONNECTED));
+        Serial.printf(", connected = %s\n", String(connected));
+        lastUpdate15 = millis();
+    };
 
 
     // if (millis() - timing > accel*10){ 
